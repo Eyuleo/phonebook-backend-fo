@@ -43,7 +43,7 @@ app.get('/api/persons/:id', (req, res) => {
 		})
 })
 
-app.post('/api/persons', (req, res) => {
+app.post('/api/persons', (req, res, next) => {
 	const body = req.body
 	if (!body.name || !body.number) {
 		return res.status(400).send({ message: 'name or name missing' })
@@ -55,18 +55,35 @@ app.post('/api/persons', (req, res) => {
 		id: generateId(),
 	})
 
-	person.save().then((savedPerson) => {
-		res.json(savedPerson)
-	})
+	person
+		.save()
+		.then((savedPerson) => {
+			res.json(savedPerson)
+		})
+		.catch((error) => next(error))
 })
 
-app.delete('/api/persons/:id', (req, res) => {
-	const id = +req.params.id
-	if (persons.find((p) => Number(p.id) === id)) {
-		persons = persons.filter((p) => Number(p.id) !== id)
-		return res.status(204).end()
+app.put('/api/persons/:id', (req, res, next) => {
+	const body = req.body
+
+	const person = {
+		name: body.name,
+		number: body.number,
 	}
-	res.status(400).send({ message: 'person not found' })
+
+	Phonebook.findByIdAndUpdate(req.params.id, person, { new: true })
+		.then((updatedContact) => {
+			res.json(updatedContact)
+		})
+		.catch((error) => next(error))
+})
+
+app.delete('/api/persons/:id', (req, res, next) => {
+	Phonebook.findByIdAndDelete(req.params.id)
+		.then(() => {
+			res.status(204).end()
+		})
+		.catch((error) => next(error))
 })
 
 const unknownEndpoint = (req, res) => {
@@ -74,5 +91,16 @@ const unknownEndpoint = (req, res) => {
 }
 
 app.use(unknownEndpoint)
+
+const errorHandler = (error, req, res, next) => {
+	console.error(error.message)
+
+	if (error.name === 'CastError') {
+		return res.status(400).sen({ message: 'malformatted id' })
+	}
+	next(error)
+}
+
+app.use(errorHandler)
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => console.log(`server running on ${PORT}`))
