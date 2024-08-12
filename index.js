@@ -30,7 +30,7 @@ app.get('/api/persons', (req, res) => {
 	})
 })
 
-app.get('/api/persons/:id', (req, res) => {
+app.get('/api/persons/:id', (req, res, next) => {
 	Phonebook.findById(req.params.id)
 		.then((person) => {
 			person
@@ -38,15 +38,14 @@ app.get('/api/persons/:id', (req, res) => {
 				: res.status(404).send({ message: 'person not found' })
 		})
 		.catch((error) => {
-			console.log(error)
-			res.status(400).send({ message: 'malformatted id' })
+			next(error)
 		})
 })
 
 app.post('/api/persons', (req, res, next) => {
 	const body = req.body
 	if (!body.name || !body.number) {
-		return res.status(400).send({ message: 'name or name missing' })
+		return res.status(400).send({ message: 'name or number missing' })
 	}
 
 	const person = new Phonebook({
@@ -64,14 +63,13 @@ app.post('/api/persons', (req, res, next) => {
 })
 
 app.put('/api/persons/:id', (req, res, next) => {
-	const body = req.body
+	const { name, number } = req.body
 
-	const person = {
-		name: body.name,
-		number: body.number,
-	}
-
-	Phonebook.findByIdAndUpdate(req.params.id, person, { new: true })
+	Phonebook.findByIdAndUpdate(
+		req.params.id,
+		{ name, number },
+		{ new: true, runValidators: true, context: 'query' }
+	)
 		.then((updatedContact) => {
 			res.json(updatedContact)
 		})
@@ -93,10 +91,13 @@ const unknownEndpoint = (req, res) => {
 app.use(unknownEndpoint)
 
 const errorHandler = (error, req, res, next) => {
-	console.error(error.message)
+	console.error('Error:', error.name)
+	console.error('Message:', error.message)
 
 	if (error.name === 'CastError') {
-		return res.status(400).sen({ message: 'malformatted id' })
+		return res.status(400).json({ message: 'malformatted id' })
+	} else if (error.name === 'ValidationError') {
+		return res.status(400).json({ message: error.message })
 	}
 	next(error)
 }
